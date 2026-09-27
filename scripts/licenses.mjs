@@ -4,7 +4,7 @@ let text = readFileSync('THIRD_PARTY_NOTICES.md', 'utf8') + '\n\n## S2 JSON and 
 for (const name of packages) {
   const pkg = JSON.parse(readFileSync(`node_modules/${name}/package.json`, 'utf8'));
   let license;
-  for (const filename of ['LICENSE','LICENSE.md','LICENSE.txt']) { try { license = readFileSync(`node_modules/${name}/${filename}`, 'utf8'); break; } catch {} }
+  for (const filename of ['LICENSE','LICENSE.md','LICENSE.txt','license','license.md','license.txt']) { try { license = readFileSync(`node_modules/${name}/${filename}`, 'utf8'); break; } catch {} }
   if (!license) throw new Error(`Missing license for ${name}`);
   text += `\n### ${name} ${pkg.version}\n\n${license}\n`;
 }
