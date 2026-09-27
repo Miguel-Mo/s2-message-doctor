@@ -93,4 +93,4 @@ The top summary combines schema and additional-check outcomes so a schema pass c
 
 `npm run test:browser` runs six scenarios in each of Chromium, Firefox and WebKit. These Playwright builds are browser-engine coverage, not a claim that every Safari/Firefox version or platform has been tested.
 
-On Windows, the WebKit test runner cannot navigate file URLs with its offline flag. Its tests instead block HTTP(S) requests before opening the local file; Chromium and Firefox use offline mode. See docs/verification.md for this distinction. Existing #validator and #guide-N links remain supported and normalize to #/ routes.
+On Windows and Linux, the WebKit test runner cannot navigate file URLs with its offline flag. Its tests instead block HTTP(S) requests before opening the local file; Chromium and Firefox use offline mode. See docs/verification.md for this distinction. Existing #validator and #guide-N links remain supported and normalize to #/ routes.
