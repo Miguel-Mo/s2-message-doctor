@@ -1,0 +1,27 @@
+import { configureOffline } from './support';
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+test('schema assistance, separate checks and real report export offline',async({page,context,browserName})=>{
+  await configureOffline(context,browserName);await page.goto(pathToFileURL(resolve('dist/index.html')).href);
+  await page.locator('.schema-tools > summary').click();
+  await page.locator('#expected-type').selectOption('Handshake');
+  await page.locator('#open-reference').click();
+  await expect(page.locator('#field-reference')).toContainText('/message_id');
+  await page.locator('#close-reference').click();
+  await page.locator('#editor').fill('{"role":"RM"}');await page.locator('#validate').click();
+  await expect(page.locator('#report')).toContainText('requires the field `message_id`');
+  await expect(page.locator('#report')).toContainText('requires the field `message_type`');
+  await page.locator('#editor').fill('{"message_type":"Handshake","message_id":"message-01","role":"RM"}');
+  await page.locator('#validate').click();
+  await expect(page.locator('.semantic-results')).toContainText('HS-001 · failed');
+  await expect(page.locator('#report h3')).toHaveText('Message matches the pinned schema');
+  const downloaded=page.waitForEvent('download');await page.locator('#export-report').click();
+  const report=JSON.parse(readFileSync((await(await downloaded).path())!,'utf8'));
+  expect(report.results.schema).toBe(true);expect(report.results.semantics[0].status).toBe('failed');
+  await page.locator('#editor').fill('{}');await expect(page.locator('#export-report')).toHaveCount(0);
+  await page.evaluate(readFileSync(resolve('node_modules/axe-core/axe.min.js'),'utf8'));
+  expect(await page.evaluate(async()=>(await(window as any).axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations)).toEqual([]);
+  await page.locator('#validate').click();await page.screenshot({path:'docs/schema-assistance.png',fullPage:true});
+});

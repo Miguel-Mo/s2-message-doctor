@@ -1,0 +1,26 @@
+import { describe, expect, it } from 'vitest';
+import { validate, validators, MAX_BYTES } from '../src/validator';
+import { examples } from '../src/examples';
+const check = (data: unknown) => validate(JSON.stringify(data));
+describe('pinned S2 schema validation', () => {
+  it('reports malformed JSON with location', () => { const r = validate('{\n "a": }'); expect(r.json).toBe(false); expect(r.issues[0].path).toContain('line 2:'); });
+  it('rejects comments and trailing commas', () => { expect(validate('{"a":1,}').json).toBe(false); expect(validate('{/*comment*/}').json).toBe(false); });
+  it('handles an empty object', () => { const r = check({}); expect(r.json).toBe(true); expect(r.schema).toBeNull(); expect(r.issues[0].path).toBe('/message_type'); });
+  it('handles absent message_type', () => expect(check({message_id:'message-01'}).issues[0].rule).toContain('tool:'));
+  it('handles unknown message_type', () => expect(check({message_type:'Unknown'}).schema).toBeNull());
+  it.each(Object.entries(examples))('accepts valid %s', (_, data) => { const r = check(data); expect(r.issues).toEqual([]); expect(r.schema).toBe(true); });
+  it('requires message_id', () => { const {message_id: _, ...data} = examples.Handshake; const r = check(data); expect(r.schema).toBe(false); expect(r.issues[0].path).toBe('/message_id'); expect(r.issues[0].explanation).toContain('requires the field `message_id`'); });
+  it('does not coerce numeric strings', () => { const r = check({...examples.ResourceManagerDetails, instruction_processing_delay: '100'}); expect(r.schema).toBe(false); expect(r.issues[0].explanation).toContain('not text'); });
+  it('explains enum failures', () => { const r = check({...examples.Handshake, role: 'UNKNOWN'}); expect(r.issues[0].path).toBe('/role'); expect(r.issues[0].rule).toContain('enum'); });
+  it('rejects additional properties', () => { const r = check({...examples.Handshake, extra: 1}); expect(r.issues[0].path).toBe('/extra'); expect(r.schema).toBe(false); });
+  it('compiles every message and resolves nested references', () => { expect(validators.size).toBe(36); const data = structuredClone(examples['PEBC.PowerConstraints']); (data.allowed_limit_ranges[1].range_boundary as any).end_of_range = 'oops'; const r = check(data); expect(r.issues[0].path).toBe('/allowed_limit_ranges/1/range_boundary/end_of_range'); expect(r.formatted!.slice(r.issues[0].offset, r.issues[0].offset + r.issues[0].length)).toBe('"oops"'); });
+  it('checks date-time formats', () => expect(check({...examples['PEBC.PowerConstraints'], valid_from:'yesterday'}).schema).toBe(false));
+  it('preserves original validator details', () => expect(check({...examples.Handshake, role:0}).technical).toEqual(expect.arrayContaining([expect.objectContaining({keyword:'type',instancePath:'/role',params:{type:'string'}})])));
+  it('preserves numeric lexemes and strings during formatting', () => { const r = validate('{"message_type":"Unknown","n":1e2,"text":"<img src=x>"}'); expect(r.formatted).toContain('1e2'); expect(r.formatted).toContain('<img src=x>'); });
+  it('handles primitive roots without inventing schema rules', () => { for (const v of [null, [], 1, 'a']) { expect(check(v).json).toBe(true); expect(check(v).schema).toBeNull(); } });
+  it('skips ambiguous duplicate keys', () => { const r = validate('{"role":"RM","role":"CEM"}'); expect(r.json).toBe(true); expect(r.schema).toBeNull(); expect(r.warnings[0]).toContain('Duplicate'); });
+  it('does not round large numbers during formatting', () => { const r = validate('{"n":9007199254740993}'); expect(r.formatted).toContain('9007199254740993'); expect(r.schema).toBeNull(); });
+  it('applies input and nesting limits before parsing', () => { expect(validate(' '.repeat(MAX_BYTES + 1)).warnings[0]).toContain('tool limit'); expect(validate('['.repeat(101)).warnings[0]).toContain('tool limit'); });
+  it('hides sensitive values and safely escapes JSON Pointer paths', () => { const r = check({...examples.Handshake, password:'secret', 'a/b~c':1}); expect(r.issues[0].value).toContain('Hidden'); expect(r.issues[1].path).toBe('/a~1b~0c'); });
+  it('does not strengthen upstream object schemas', () => { const r = check({...examples.ResourceManagerDetails, roles:[null]}); expect(r.schema).toBe(true); expect(r.warnings).not.toEqual([]); });
+});

@@ -1,0 +1,5 @@
+S2 Message Doctor
+Copyright 2026 S2 Message Doctor contributors.
+
+This project includes S2 JSON schemas from flexiblepower/s2-json under Apache-2.0.
+See THIRD_PARTY_NOTICES.md and vendor/s2-json/v1.0.0/LICENSE.
